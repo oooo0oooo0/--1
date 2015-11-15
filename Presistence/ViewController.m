@@ -7,6 +7,9 @@
 //
 
 #import "ViewController.h"
+#import "FourLines.h"
+
+static NSString* const kRootKey=@"kRootKey";
 
 @interface ViewController ()
 @property(strong,nonatomic) IBOutletCollection(UITextField) NSArray *lineFields;
@@ -20,8 +23,10 @@
     //获取Documents文件的路径
     NSArray *path=NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     NSString *documentDiectory=[path objectAtIndex:0];
-    //获取data.plist文件的完整路径
-    return [documentDiectory stringByAppendingPathExtension:@"data.plist"];
+    //获取data.archive文件的完整路径
+    return [documentDiectory stringByAppendingPathExtension:@"data.archive"];
+    
+    
 }
 
 - (void)viewDidLoad {
@@ -31,13 +36,18 @@
     NSString *filePath=[self dataFailePath];
     //确保文件存在
     if ([[NSFileManager defaultManager] fileExistsAtPath:filePath]) {
-        //把文件中的内容加载到nsarray中
-        NSArray *array=[[NSArray alloc] initWithContentsOfFile:filePath];
-        //把nsarray中的内容恢复到输入框中
-        for (int i=0; i<4; i++) {
-            UITextField *theField=self.lineFields[i];
-            theField.text=array[i];
-            NSLog(@"%@",array[i]);
+        //把文件中的内容加载到nsdata中
+        NSData *data=[[NSMutableData alloc] initWithContentsOfFile:filePath];
+        //创建一个NSKeyedUnarchiver对象用来解码数据
+        NSKeyedUnarchiver *unarchiver=[[NSKeyedUnarchiver alloc] initForReadingWithData:data];
+        //把解码的数据中kRootKey对应的值恢复为FourLines
+        FourLines *fourLines=[unarchiver decodeObjectForKey:kRootKey];
+        //结束解码操作
+        [unarchiver finishDecoding];
+        
+        for (int i = 0; i<4; i++) {
+            UITextField *theFields=self.lineFields[i];
+            theFields.text=fourLines.lines[i];
         }
     }
     
@@ -52,11 +62,18 @@
     NSLog(@"接收到通知");
     //获取文件路径
     NSString *filePath=[self dataFailePath];
-    //把输入内容收集到nsarray
-    NSArray *array=[self.lineFields valueForKey:@"text"];
-    //把nsarray的内容写到文件中
-    //atomically设置为yes可以把内容先写到副本中，防止因为程序崩溃造成原来的文件损坏
-    [array writeToFile:filePath atomically:YES];
+    
+    FourLines *fourines=[[FourLines alloc] init];
+    fourines.lines=[self.lineFields valueForKey:@"text"];
+    NSMutableData *data=[[NSMutableData alloc] init];
+    //创建NSKeyedArchiver对象用来编码数据
+    NSKeyedArchiver *archiver=[[NSKeyedArchiver alloc] initForWritingWithMutableData:data];
+    //把fourines数据编码赋值给kRootKey对应的值
+    [archiver encodeObject:fourines forKey:kRootKey];
+    //结束编码操作
+    [archiver finishEncoding];
+    //把编码后的内容写入文件
+    [data writeToFile:filePath atomically:YES];
 }
 
 - (void)didReceiveMemoryWarning {
